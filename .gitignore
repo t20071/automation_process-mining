@@ -27,7 +27,8 @@ env/
 htmlcov/
 
 # --- Data & audit (generated at runtime) ---
-data/
+data/*
+!data/event_logs.csv
 audit/
 
 # --- OS ---
