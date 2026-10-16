@@ -15,9 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from process_agent.agent.gate_engine import GateDecision, GateEngine, GateResult
+from process_agent.agent.gate_engine import GateDecision, GateEngine
 from process_agent.agent.llm_client import ActionProposal, DeterministicLLMClient
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -192,7 +191,7 @@ class TestAuditLog:
 
         lines = engine.audit_log_path.read_text().strip().splitlines()
         assert len(lines) == 3
-        decisions = {json.loads(l)["decision"] for l in lines}
+        decisions = {json.loads(line)["decision"] for line in lines}
         assert decisions == {"APPROVED", "DENIED", "ESCALATED"}
 
     def test_audit_log_entries_have_timestamp(self, tmp_path: Path) -> None:
@@ -258,3 +257,24 @@ class TestHighImpactGate:
         )
         result = engine.evaluate(proposal, SAMPLE_CONTEXT)
         assert result.decision == GateDecision.ESCALATED
+
+
+# ---------------------------------------------------------------------------
+# trace() — step-by-step explanation, no side effects
+# ---------------------------------------------------------------------------
+
+
+def test_trace_marks_gates_after_first_failure_as_skipped(tmp_path: Path) -> None:
+    engine = GateEngine(audit_log_path=tmp_path / "audit.jsonl")
+    proposal = ActionProposal(action="approve_payment", confidence=0.95,
+                              reasoning="", affected_fields=[])
+    statuses = [c.status for c in engine.trace(proposal)]
+    assert statuses == ["pass", "fail", "skipped"]
+    assert not (tmp_path / "audit.jsonl").exists()   # trace never logs
+
+
+def test_trace_all_pass_for_clean_proposal(tmp_path: Path) -> None:
+    engine = GateEngine(audit_log_path=tmp_path / "audit.jsonl")
+    proposal = ActionProposal(action="check_receipt_completeness", confidence=0.92,
+                              reasoning="", affected_fields=[])
+    assert all(c.status == "pass" for c in engine.trace(proposal))

@@ -11,19 +11,15 @@ import pandas as pd
 import pytest
 
 from process_agent.mining.process_mining import (
-    ActivityStats,
-    DFGEdge,
     ProcessMap,
     _build_dfg,
     _compute_activity_stats,
-    _count_variants,
     _flag_automatable,
     _flag_bottlenecks,
     _validate_df,
     cycle_time_summary,
     discover_process_map,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

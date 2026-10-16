@@ -7,12 +7,9 @@ No file I/O unless explicitly testing output_path.
 
 from __future__ import annotations
 
-import math
-import tempfile
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from process_agent.generators.log_generator import (
     AUTOMATABLE_ACTIVITIES,
@@ -161,7 +158,7 @@ def test_load_or_generate_reads_existing(tmp_path: Path) -> None:
 
 def test_load_or_generate_force_regenerate(tmp_path: Path) -> None:
     out = tmp_path / "event_logs.csv"
-    df1 = load_or_generate(output_path=out, num_cases=50, seed=11)
+    load_or_generate(output_path=out, num_cases=50, seed=11)
     df2 = load_or_generate(
         output_path=out, num_cases=100, seed=12, force_regenerate=True
     )

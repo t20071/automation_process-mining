@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
+from process_agent.agent.llm_client import DEFAULT_GROQ_MODEL, extract_json
 from process_agent.mining.process_mining import ActivityStats, ProcessMap
 
 logger = logging.getLogger(__name__)
@@ -270,7 +271,7 @@ def _llm_enhance(
     advice_list: list[ActivityAdvice],
     stats_map: dict[str, ActivityStats],
     api_key: str,
-    model: str = "llama3-8b-8192",
+    model: str = DEFAULT_GROQ_MODEL,
 ) -> list[ActivityAdvice]:
     """
     Make a single batched Groq call to enrich all rule-based advice.
@@ -307,19 +308,27 @@ def _llm_enhance(
             max_tokens=2048,
         )
         raw = completion.choices[0].message.content or "[]"
-        llm_data: list[dict] = json.loads(raw.strip())
+        llm_data = extract_json(raw)
+        if isinstance(llm_data, dict):
+            # Some models wrap the array: {"recommendations": [...]}
+            llm_data = next(
+                (v for v in llm_data.values() if isinstance(v, list)), []
+            )
 
         # Merge LLM output into advice list
-        llm_map = {item["activity"]: item for item in llm_data}
+        llm_map = {
+            item["activity"]: item
+            for item in llm_data
+            if isinstance(item, dict) and "activity" in item
+        }
         enhanced: list[ActivityAdvice] = []
         for adv in advice_list:
             llm = llm_map.get(adv.activity)
             if llm:
                 adv.how_to_automate = llm.get("how_to_automate", adv.how_to_automate)
                 adv.tools_suggested = llm.get("tools_suggested", adv.tools_suggested)
-                adv.estimated_saving_pct = float(
-                    llm.get("estimated_saving_pct", adv.estimated_saving_pct)
-                )
+                saving = float(llm.get("estimated_saving_pct", adv.estimated_saving_pct))
+                adv.estimated_saving_pct = min(max(saving, 0.0), 1.0)
                 adv.source = "llm"
             enhanced.append(adv)
         logger.info("LLM-enhanced automation advice", extra={"count": len(enhanced)})
@@ -341,7 +350,7 @@ def _llm_enhance(
 def get_automation_advice(
     process_map: ProcessMap,
     groq_api_key: str = "",
-    groq_model: str = "llama3-8b-8192",
+    groq_model: str = DEFAULT_GROQ_MODEL,
 ) -> list[ActivityAdvice]:
     """
     Return automation advice for every activity in the process map.

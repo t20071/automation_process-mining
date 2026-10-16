@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -52,6 +51,15 @@ class GateResult:
     def __post_init__(self) -> None:
         if not self.evaluated_at:
             self.evaluated_at = datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class GateCheck:
+    """Outcome of one gate, for explaining a decision step by step."""
+
+    name: str
+    status: str      # "pass" | "fail" | "skipped"
+    detail: str
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +127,43 @@ class GateEngine:
             or self._approve(proposal, context)
         )
         self._append_audit_log(result)
+        return result
+
+    def trace(self, proposal: ActionProposal) -> list[GateCheck]:
+        """
+        Explain how each gate treats a proposal, in evaluation order.
+
+        Pure and side-effect free (nothing is logged).  Gates after the
+        first failure are reported as "skipped", mirroring evaluate().
+        """
+        checks = [
+            (
+                "Confidence",
+                proposal.confidence >= self.confidence_threshold,
+                f"{proposal.confidence:.2f} vs threshold "
+                f"{self.confidence_threshold:.2f}",
+            ),
+            (
+                "Policy allowlist",
+                proposal.action in self.policy_allowlist,
+                f"'{proposal.action}' "
+                + ("is" if proposal.action in self.policy_allowlist else "is not")
+                + " allowlisted",
+            ),
+            (
+                "High-impact scrutiny",
+                proposal.action not in self.high_impact_actions,
+                f"'{proposal.action}' "
+                + ("is" if proposal.action in self.high_impact_actions else "is not")
+                + " high-impact",
+            ),
+        ]
+        result: list[GateCheck] = []
+        failed = False
+        for name, passed, detail in checks:
+            status = "skipped" if failed else ("pass" if passed else "fail")
+            result.append(GateCheck(name=name, status=status, detail=detail))
+            failed = failed or not passed
         return result
 
     # ------------------------------------------------------------------ #

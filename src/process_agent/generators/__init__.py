@@ -1,3 +1,5 @@
 """
-src/process_agent/generators/__init__.py
+Synthetic data.
+
+log_generator   Expense-reimbursement event logs across four process variants
 """

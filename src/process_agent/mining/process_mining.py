@@ -59,6 +59,8 @@ class ProcessMap:
     bottlenecks: list[str]          # top-N high-variance activities
     automatable_steps: list[str]    # low-variance, consistent steps
     variant_counts: dict[str, int]  # case count per variant
+    start_activities: dict[str, int] = field(default_factory=dict)
+    end_activities: dict[str, int] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -186,8 +188,21 @@ def _build_dfg(df: pd.DataFrame) -> tuple[nx.DiGraph, list[DFGEdge]]:
 
 def _count_variants(df: pd.DataFrame) -> dict[str, int]:
     """Return case count per variant."""
+    if "variant" not in df.columns:
+        return {"unknown": int(df["case_id"].nunique())}
     case_df = df.drop_duplicates(subset="case_id")
     return case_df["variant"].value_counts().to_dict()
+
+
+def _count_endpoints(df: pd.DataFrame) -> tuple[dict[str, int], dict[str, int]]:
+    """Return (start activity counts, end activity counts) across cases."""
+    ordered = df.assign(_ts=pd.to_datetime(df["timestamp"], utc=True)).sort_values(
+        ["case_id", "_ts"]
+    )
+    grp = ordered.groupby("case_id")["activity"]
+    starts = grp.first().astype(str).value_counts().to_dict()
+    ends = grp.last().astype(str).value_counts().to_dict()
+    return starts, ends
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +210,11 @@ def _count_variants(df: pd.DataFrame) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def discover_process_map(df: pd.DataFrame) -> ProcessMap:
+def discover_process_map(
+    df: pd.DataFrame,
+    bottleneck_top_n: int = _BOTTLENECK_TOP_N,
+    cv_threshold: float = _AUTOMATABLE_CV_THRESHOLD,
+) -> ProcessMap:
     """
     Mine the process map from an event-log DataFrame.
 
@@ -203,6 +222,8 @@ def discover_process_map(df: pd.DataFrame) -> ProcessMap:
     ----------
     df : DataFrame with columns case_id, activity, timestamp,
          duration_seconds, variant.
+    bottleneck_top_n : How many highest-variance activities to flag.
+    cv_threshold : Max coefficient of variation for an automatable step.
 
     Returns
     -------
@@ -211,10 +232,17 @@ def discover_process_map(df: pd.DataFrame) -> ProcessMap:
     _validate_df(df)
 
     activity_stats = _compute_activity_stats(df)
-    bottlenecks = _flag_bottlenecks(activity_stats)
-    automatable_steps = _flag_automatable(activity_stats)
+    bottlenecks = _flag_bottlenecks(activity_stats, top_n=bottleneck_top_n)
+    automatable_steps = [
+        a
+        for a in _flag_automatable(activity_stats, cv_threshold=cv_threshold)
+        if a not in bottlenecks   # high-variance steps are never "consistent"
+    ]
+    for act in bottlenecks:
+        activity_stats[act].is_automatable = False
     graph, dfg_edges = _build_dfg(df)
     variant_counts = _count_variants(df)
+    start_activities, end_activities = _count_endpoints(df)
 
     logger.info(
         "Process map discovered",
@@ -232,6 +260,8 @@ def discover_process_map(df: pd.DataFrame) -> ProcessMap:
         bottlenecks=bottlenecks,
         automatable_steps=automatable_steps,
         variant_counts=variant_counts,
+        start_activities=start_activities,
+        end_activities=end_activities,
     )
 
 

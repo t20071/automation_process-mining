@@ -21,11 +21,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 
 # ---------------------------------------------------------------------------
 # Data model — the ONLY thing an agent may produce
@@ -167,17 +170,40 @@ def _build_user_prompt(context: dict[str, Any]) -> str:
     )
 
 
+_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+
+
+def extract_json(raw: str) -> Any:
+    """
+    Parse JSON from an LLM reply, tolerating Markdown code fences and
+    leading/trailing prose around the first JSON object or array.
+    """
+    text = _FENCE_RE.sub("", raw.strip())
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        starts = [i for i in (text.find("{"), text.find("[")) if i != -1]
+        if not starts:
+            raise
+        start = min(starts)
+        end = max(text.rfind("}"), text.rfind("]"))
+        return json.loads(text[start : end + 1])
+
+
 def _parse_proposal(raw: str, context: dict[str, Any]) -> ActionProposal:
     """Parse JSON response from Groq into an ActionProposal."""
     try:
-        data = json.loads(raw.strip())
+        data = extract_json(raw)
     except json.JSONDecodeError as exc:
         logger.warning("Failed to parse LLM response as JSON", extra={"raw": raw})
         raise ValueError(f"LLM returned non-JSON response: {exc}") from exc
 
+    if not isinstance(data, dict):
+        raise ValueError("LLM response must be a JSON object")
+    confidence = min(max(float(data.get("confidence", 0.0)), 0.0), 1.0)
     return ActionProposal(
         action=str(data.get("action", "")),
-        confidence=float(data.get("confidence", 0.0)),
+        confidence=confidence,
         reasoning=str(data.get("reasoning", "")),
         affected_fields=list(data.get("affected_fields", [])),
         raw_response=raw,
@@ -187,7 +213,7 @@ def _parse_proposal(raw: str, context: dict[str, Any]) -> ActionProposal:
 class GroqLLMClient(LLMClient):
     """Calls the Groq API (OpenAI-compatible endpoint)."""
 
-    def __init__(self, api_key: str, model: str = "llama3-8b-8192") -> None:
+    def __init__(self, api_key: str, model: str = DEFAULT_GROQ_MODEL) -> None:
         try:
             from groq import Groq  # type: ignore[import]
         except ImportError as exc:
@@ -210,6 +236,7 @@ class GroqLLMClient(LLMClient):
             ],
             temperature=0.1,
             max_tokens=256,
+            response_format={"type": "json_object"},
         )
         raw = completion.choices[0].message.content or ""
         return _parse_proposal(raw, context)
@@ -223,7 +250,7 @@ class GroqLLMClient(LLMClient):
 def get_client(
     provider: str = "deterministic",
     api_key: str = "",
-    model: str = "llama3-8b-8192",
+    model: str = DEFAULT_GROQ_MODEL,
     scenario: str = "scenario_a",
 ) -> LLMClient:
     """

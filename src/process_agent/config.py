@@ -11,6 +11,8 @@ import os
 from dataclasses import dataclass, field
 from enum import Enum
 
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+
 
 class LLMProvider(str, Enum):
     """Supported LLM provider backends."""
@@ -19,19 +21,34 @@ class LLMProvider(str, Enum):
     DETERMINISTIC = "deterministic"
 
 
-def _get_api_key() -> str:
+def _get_secret(name: str, default: str = "") -> str:
     """
-    Read the Groq API key without ever hardcoding it.
+    Read a setting without ever hardcoding it.
     Priority:
-      1. st.secrets["GROQ_API_KEY"]  (Streamlit Cloud)
-      2. os.environ["GROQ_API_KEY"]   (local dev / CI)
+      1. st.secrets[name]  (Streamlit Cloud)
+      2. os.environ[name]  (local dev / CI)
     """
     try:
         import streamlit as st  # type: ignore[import]
 
-        return st.secrets["GROQ_API_KEY"]
+        value = st.secrets.get(name)
+        if value not in (None, ""):
+            return str(value)
     except Exception:
-        return os.environ.get("GROQ_API_KEY", "")
+        pass
+    return os.environ.get(name, default)
+
+
+def _get_api_key() -> str:
+    return _get_secret("GROQ_API_KEY")
+
+
+def _get_provider() -> LLMProvider:
+    """Explicit LLM_PROVIDER wins; otherwise use Groq only when a key exists."""
+    explicit = _get_secret("LLM_PROVIDER").strip().lower()
+    if explicit in {p.value for p in LLMProvider}:
+        return LLMProvider(explicit)
+    return LLMProvider.GROQ if _get_api_key() else LLMProvider.DETERMINISTIC
 
 
 def _load_env() -> None:
@@ -48,17 +65,15 @@ def _load_env() -> None:
 class Settings:
     """All application settings — read once at startup."""
 
-    llm_provider: LLMProvider = field(
-        default_factory=lambda: LLMProvider(
-            os.environ.get("LLM_PROVIDER", LLMProvider.DETERMINISTIC)
-        )
-    )
+    llm_provider: LLMProvider = field(default_factory=_get_provider)
     groq_api_key: str = field(default_factory=_get_api_key)
-    groq_model: str = "llama3-8b-8192"
+    groq_model: str = field(
+        default_factory=lambda: _get_secret("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+    )
 
     # Gate engine thresholds
-    confidence_threshold: float = float(
-        os.environ.get("CONFIDENCE_THRESHOLD", "0.80")
+    confidence_threshold: float = field(
+        default_factory=lambda: float(_get_secret("CONFIDENCE_THRESHOLD", "0.80"))
     )
 
     # Policy: only these actions may be auto-approved
@@ -84,14 +99,21 @@ class Settings:
     )
 
     # Log generator
-    num_cases: int = int(os.environ.get("NUM_CASES", "2000"))
+    num_cases: int = field(
+        default_factory=lambda: int(_get_secret("NUM_CASES", "2000"))
+    )
 
     # Paths (relative to project root)
     event_log_path: str = "data/event_logs.csv"
     audit_log_path: str = "audit/decisions_log.jsonl"
 
+    @property
+    def live_llm(self) -> bool:
+        """True when the Groq provider is selected and a key is available."""
+        return self.llm_provider == LLMProvider.GROQ and bool(self.groq_api_key)
+
 
 def get_settings() -> Settings:
     """Return a fully initialised Settings object."""
     _load_env()          # populate os.environ from .env first
-    return Settings()    # then dataclass lambdas read the populated env
+    return Settings()    # then dataclass factories read the populated env

@@ -1,33 +1,50 @@
 # ============================================================
 # Makefile — Process Intelligence + Agentic Automation Engine
-# Uses conda environment located at ./venv
+# Uses a conda environment located at ./venv
 # ============================================================
 
 CONDA_ENV := $(CURDIR)/venv
-PYTHON    := conda run --no-capture-output --prefix $(CONDA_ENV) python
-PIP       := conda run --no-capture-output --prefix $(CONDA_ENV) pip
+RUN       := conda run --no-capture-output --prefix $(CONDA_ENV)
 
-.PHONY: env setup test lint run clean
+.PHONY: help env setup test lint format run data clean
+
+## Show available targets
+help:
+	@echo "setup   create ./venv and install the package + dev tools"
+	@echo "run     launch the Streamlit app"
+	@echo "test    run the test suite"
+	@echo "lint    ruff check"
+	@echo "format  black"
+	@echo "data    regenerate data/event_logs.csv"
+	@echo "clean   remove caches"
 
 ## Create the conda environment (Python 3.11) in ./venv
 env:
 	conda create --prefix $(CONDA_ENV) python=3.11 -y
 
-## Install all project dependencies into the conda env
+## Install the package and dev tools into the conda env
 setup: env
-	$(PIP) install -e ".[dev]"
+	$(RUN) pip install -e ".[dev]"
 
-## Run all tests (no live API calls — uses deterministic provider)
+## Run the test suite (deterministic provider — no live API calls)
 test:
-	conda run --no-capture-output --prefix $(CONDA_ENV) pytest tests/ -v --tb=short
+	$(RUN) pytest
 
-## Run linter
+## Lint with ruff
 lint:
-	conda run --no-capture-output --prefix $(CONDA_ENV) ruff check src/ tests/
+	$(RUN) ruff check src tests app.py
+
+## Auto-format with black
+format:
+	$(RUN) black src tests app.py
 
 ## Launch the Streamlit app
 run:
-	conda run --no-capture-output --prefix $(CONDA_ENV) streamlit run app.py
+	$(RUN) streamlit run app.py
+
+## Regenerate data/event_logs.csv
+data:
+	$(RUN) python -m process_agent.generators.log_generator
 
 ## Remove generated artefacts (not the conda env)
 clean:

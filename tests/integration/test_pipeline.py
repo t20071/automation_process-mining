@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from process_agent.agent.gate_engine import GateDecision, GateEngine
 from process_agent.agent.llm_client import DeterministicLLMClient
 from process_agent.generators.log_generator import generate_event_log
@@ -51,6 +49,7 @@ def test_full_pipeline_scenario_b(tmp_path: Path) -> None:
     """
     df = generate_event_log(num_cases=100, seed=1)
     process_map = discover_process_map(df)
+    assert process_map.bottlenecks, "mining must run before the agent step"
 
     context = {
         "case_id": "CASE-00002",
@@ -73,6 +72,7 @@ def test_full_pipeline_scenario_c(tmp_path: Path) -> None:
     """
     df = generate_event_log(num_cases=100, seed=2)
     process_map = discover_process_map(df)
+    assert process_map.bottlenecks, "mining must run before the agent step"
 
     context = {
         "case_id": "CASE-00003",
@@ -111,5 +111,5 @@ def test_audit_log_accumulates_all_three_scenarios(tmp_path: Path) -> None:
 
     lines = engine.audit_log_path.read_text().strip().splitlines()
     assert len(lines) == 3
-    decisions = {json.loads(l)["decision"] for l in lines}
+    decisions = {json.loads(line)["decision"] for line in lines}
     assert decisions == {"APPROVED", "DENIED", "ESCALATED"}

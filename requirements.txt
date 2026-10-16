@@ -1,6 +1,8 @@
-streamlit>=1.35.0
+# Runtime dependencies — Streamlit Community Cloud installs from this file.
+# Keep in sync with [project.dependencies] in pyproject.toml.
+streamlit>=1.57.0
 pandas>=2.2.0
 networkx>=3.3
+altair>=5.4.0
 groq>=0.9.0
 python-dotenv>=1.0.1
-matplotlib>=3.9.0

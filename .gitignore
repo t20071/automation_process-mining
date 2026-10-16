@@ -29,6 +29,7 @@ htmlcov/
 # --- Data & audit (generated at runtime) ---
 data/*
 !data/event_logs.csv
+!data/README.md
 audit/
 
 # --- OS ---

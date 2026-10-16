@@ -36,54 +36,38 @@ quick test."
 
 ## Web design
 Before writing any CSS, Streamlit custom styling, or `.streamlit/config.toml`
-theme settings, read `SKILL_webdesign.md` in this repo and follow it exactly —
-color tokens, type scale, spacing, and radius values are all specified there.
-Do not invent a different color palette or font stack.
+theme settings, read `docs/design-system.md` and follow it exactly —
+color tokens, fonts, status palette, spacing, and radius values are all specified
+there. Do not invent a different color palette or font stack.
 
 ## Project structure
 ```
-process_agent_project/
-├── .env                           # LOCAL ONLY — real secrets, gitignored, never committed
-├── .env.example                   # COMMITTED — documents every required var, no real values
-├── .gitignore                     # must include .env (never .env.example)
-├── .streamlit/
-│   └── config.toml                # theme tokens ONLY — no secrets live here anymore
-├── pyproject.toml                 # dependencies, tool config (ruff/black/pytest), package metadata
-├── requirements.txt               # pinned, generated from pyproject.toml — Streamlit Cloud reads this
-├── Makefile                       # make setup / make test / make run / make lint
-├── CLAUDE.md
-├── SKILL_webdesign.md             # read before writing any UI/CSS/theme code
-├── README.md
-├── app.py                         # THIN entrypoint only — imports from src/, no business logic here
-├── src/
-│   └── process_agent/
-│       ├── __init__.py
-│       ├── config.py              # single source of truth for all settings — see below
-│       ├── logging_config.py      # structured logging setup, used by every module
-│       ├── generators/
-│       │   ├── __init__.py
-│       │   └── log_generator.py
-│       ├── mining/
-│       │   ├── __init__.py
-│       │   └── process_mining.py
-│       ├── agent/
-│       │   ├── __init__.py
-│       │   ├── llm_client.py
-│       │   └── gate_engine.py
-│       └── ui/
-│           ├── __init__.py
-│           ├── theme.py           # applies SKILL_webdesign.md tokens to Streamlit
-│           └── dashboard.py       # dashboard rendering, imported by app.py
-├── data/
-│   └── event_logs.csv             # synthetic execution logs (generated, never hand-edited at runtime)
-├── audit/
-│   └── decisions_log.jsonl        # every gate decision, append-only
-└── tests/
-    ├── __init__.py
-    ├── test_log_generator.py
-    ├── test_process_mining.py
-    ├── test_gate_engine.py
-    └── test_integration.py
+automation_process-mining/
+├── app.py                         # THIN entrypoint — Streamlit Cloud main file (do not move)
+├── src/process_agent/
+│   ├── config.py                  # single source of truth for settings (st.secrets → env → defaults)
+│   ├── logging_config.py          # structured JSON logging
+│   ├── ingestion/event_log.py     # CSV column auto-detection, validation, normalisation
+│   ├── generators/log_generator.py
+│   ├── mining/
+│   │   ├── process_mining.py      # DFG discovery, activity stats, bottleneck/consistency flags
+│   │   ├── analytics.py           # cases, paths, health score, insights, ROI
+│   │   └── automation_advisor.py  # rule-based (+ optional Groq) advice
+│   ├── agent/
+│   │   ├── llm_client.py          # ActionProposal + providers
+│   │   └── gate_engine.py         # deterministic gates + audit log + trace()
+│   └── ui/
+│       ├── state.py               # session state + dataset callbacks
+│       ├── analysis.py            # cached per-dataset Analysis bundle
+│       ├── workspace.py           # sidebar + tabs
+│       ├── components/            # theme.py (tokens, HTML helpers), charts.py
+│       └── views/                 # landing, overview, process_map, automation,
+│                                  # decision_gate, roi, event_log
+├── tests/{unit,integration}/      # pytest, deterministic provider only
+├── data/event_logs.csv            # sample synthetic log
+├── docs/                          # architecture, design system, deployment, plans, images
+├── audit/decisions_log.jsonl      # runtime, gitignored, append-only
+└── .streamlit/config.toml         # theme tokens only — no secrets
 ```
 
 ## Process to demonstrate (pick one, keep it concrete)
@@ -104,13 +88,13 @@ Default: **expense reimbursement approval**. Variants to include in synthetic lo
    Tests use the `deterministic` provider — never call the live Groq API in CI.
 4. `app.py` — single Streamlit app: a page to run/view demo scenarios, plus the
    dashboard (cycle time before/after, % of case volume automated, ROI estimate).
-   Follow `SKILL_webdesign.md` for all styling — inject the color/type tokens
+   Follow `docs/design-system.md` for all styling — inject the color/type tokens
    and set `.streamlit/config.toml` theme values as specified there.
 5. Three demo scenarios, scripted for reliability (like Scenario A/B/C in prior work):
    - Scenario A: clean automated approval
    - Scenario B: policy gate denies an out-of-bounds proposal
    - Scenario C: low confidence triggers human escalation
-6. Deploy to Streamlit Community Cloud (see DEPLOYMENT.md)
+6. Deploy to Streamlit Community Cloud (see docs/deployment.md)
 
 ## Coding conventions
 - Every module independently testable — no module should require another running

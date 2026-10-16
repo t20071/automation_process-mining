@@ -1,6 +1,46 @@
+# Theme tokens from docs/design-system.md — no secrets live here.
 [theme]
-primaryColor = "#9677ff"
-backgroundColor = "#ffffff"
+base = "light"
+primaryColor = "#9677ff"            # --grape
+backgroundColor = "#ffffff"         # --white
+secondaryBackgroundColor = "#f4f7f2"
+textColor = "#161714"               # --night
+borderColor = "#e1e5de"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "6px"
+buttonRadius = "6px"
+linkUnderline = false
+
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "'Inter Tight':https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+baseFontSize = 15
+headingFontWeights = [400, 400, 500, 500, 600, 600]
+headingFontSizes = ["2.6rem", "2rem", "1.5rem", "1.2rem", "1rem", "0.9rem"]
+codeFontSize = "0.85rem"
+codeBackgroundColor = "#f4f7f2"
+codeTextColor = "#4e287a"            # --amethyst
+
+dataframeHeaderBackgroundColor = "#f7fbf5"
+dataframeBorderColor = "#e7ebe5"
+
+# Status / badge colours, tuned to the palette
+violetColor = "#8b6cf5"
+blueColor = "#2d9bc4"
+redColor = "#d6645a"
+grayColor = "#81837a"
+
+# Categorical chart colours — validated for colour-vision deficiency
+chartCategoricalColors = ["#8b6cf5", "#2d9bc4", "#d6645a"]
+
+[theme.sidebar]
+backgroundColor = "#f7fbf5"         # --stone-25
 secondaryBackgroundColor = "#e7ebe5"
-textColor = "#161714"
-font = "sans serif"
+borderColor = "#d8dad1"
+
+[client]
+toolbarMode = "minimal"
+
+[server]
+maxUploadSize = 200
